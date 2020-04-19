@@ -94,6 +94,20 @@ trait JsonEntitiesFromSchemasTestSuite[
             )
         }
 
+        // Valid URL and invalid entity (3)
+        whenReady(
+          sendAndDecodeEntityAsText(
+            HttpRequest(HttpMethods.PUT, s"http://localhost:$port/user/42")
+              .withEntity(
+                ContentTypes.`text/plain(UTF-8)`,
+                "{\"name\":\"Alice\",\"age\":55}"
+              )
+          )
+        ) {
+          case (response, entity) =>
+            assert(response.status.intValue() == 415)
+        }
+
         // Valid URL and entity
         whenReady(
           sendAndDecodeEntityAsText(
@@ -105,6 +119,9 @@ trait JsonEntitiesFromSchemasTestSuite[
         ) {
           case (response, entity) =>
             assert(response.status.intValue() == 200)
+            assert(
+              response.entity.contentType == ContentTypes.`application/json`
+            )
             ujson.read(entity) shouldBe ujson.Obj(
               "name" -> ujson.Str("Alice"),
               "age" -> ujson.Num(55)
