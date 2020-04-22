@@ -69,7 +69,7 @@ trait TextEntitiesTestSuite[T <: TextEntitiesTestApi]
         )
         whenReady(send(request)) {
           case (response, entity) =>
-            assert(response.status.intValue() == 415)
+            assert(response.status.intValue() == 400)
         }
       }
     }

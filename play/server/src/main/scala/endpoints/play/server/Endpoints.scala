@@ -216,7 +216,15 @@ trait EndpointsWithCustomErrors
   lazy val emptyRequest: BodyParser[Unit] =
     BodyParser(_ => Accumulator.done(Right(())))
 
-  lazy val textRequest: BodyParser[String] = playComponents.playBodyParsers.text
+  lazy val textRequest: BodyParser[String] = BodyParser { requestHeaders =>
+    if (requestHeaders.mediaType.forall(_.mediaType == "text")) {
+      playComponents.playBodyParsers.tolerantText(requestHeaders)
+    } else {
+      Accumulator.done(
+        Left(handleClientErrors(Invalid("Invalid request content-type")))
+      )
+    }
+  }
 
   implicit def requestEntityPartialInvariantFunctor
       : PartialInvariantFunctor[RequestEntity] =

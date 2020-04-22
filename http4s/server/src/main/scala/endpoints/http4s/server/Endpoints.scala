@@ -3,18 +3,12 @@ package endpoints.http4s.server
 import cats.effect.Sync
 import cats.implicits._
 import endpoints.algebra.Documentation
-import endpoints.{
-  Invalid,
-  PartialInvariantFunctor,
-  Semigroupal,
-  Tupler,
-  Valid,
-  Validated,
-  algebra
-}
+import endpoints.{Invalid, PartialInvariantFunctor, Semigroupal, Tupler, Valid, Validated, algebra}
 import org.http4s
-import org.http4s.{EntityEncoder, EntityDecoder, Header, Headers}
+import org.http4s.headers.`Content-Type`
+import org.http4s.{EntityDecoder, EntityEncoder, Header, HeaderKey, Headers}
 
+import scala.util.Failure
 import scala.util.control.NonFatal
 
 /**
@@ -275,15 +269,18 @@ trait EndpointsWithCustomErrors
    * requests with incorrect specified `Content-Type` still get accepted.
    */
   def textRequest: RequestEntity[String] =
-    req =>
-      EntityDecoder
-        .decodeBy(http4s.MediaType.text.plain) { msg: http4s.Media[Effect] =>
-          http4s.DecodeResult.success(EntityDecoder.decodeString(msg))
-        }
-        .decode(req, strict = true)
-        .leftWiden[Throwable]
-        .rethrowT
-        .map(Right(_))
+    req => {
+      if (req.headers
+            .get(`Content-Type`)
+            .forall(_.mediaType.mainType == "text")) {
+        EntityDecoder.text.decode(req, strict = false).fold(
+          error => Left(handleClientErrors(Invalid(error.getMessage()))),
+          text => Right(text)
+        )
+      } else {
+        Effect.pure(Left(handleClientErrors(Invalid("Invalid request content-type"))))
+      }
+    }
 
   def request[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, Out](
       method: Method,
