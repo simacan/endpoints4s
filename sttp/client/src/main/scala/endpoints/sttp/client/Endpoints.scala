@@ -124,8 +124,14 @@ trait EndpointsWithCustomErrors[R[_]]
   }
 
   lazy val textRequest: RequestEntity[String] = {
-    case (bodyValue, request) => request.body(bodyValue)
+    case (bodyValue, request) => request.body(bodyValue).contentType("text/plain")
   }
+
+   def choiceRequestEntity[A, B](
+    requestEntityA: RequestEntity[A],
+    requestEntityB: RequestEntity[B]
+  ): RequestEntity[Either[A, B]] = (eitherAB, req) =>
+    eitherAB.fold(requestEntityA(_, req), requestEntityB(_, req))
 
   implicit def requestEntityPartialInvariantFunctor
       : PartialInvariantFunctor[RequestEntity] =
