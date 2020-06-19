@@ -32,16 +32,24 @@ trait JsonEntities extends EndpointsWithCustomErrors with algebra.JsonEntities {
   type JsonResponse[A] = CirceEncoder[A]
 
   def jsonRequest[A: CirceDecoder]: RequestEntity[A] =
-    playComponents.playBodyParsers.tolerantText.validate { text =>
-      parser
-        .parse(text)
-        .left
-        .map(Show[ParsingFailure].show)
-        .flatMap { json =>
-          CirceDecoder[A].decodeJson(json).left.map(Show[DecodingFailure].show)
-        }
-        .left
-        .map(error => handleClientErrors(Invalid(error)))
+    request => {
+      if (request.contentType.exists(_.equalsIgnoreCase("application/json"))) {
+        val bodyParser =
+          playComponents.playBodyParsers.tolerantText.validate { text =>
+            parser
+              .parse(text)
+              .left
+              .map(Show[ParsingFailure].show)
+              .flatMap { json =>
+                CirceDecoder[A].decodeJson(json).left.map(Show[DecodingFailure].show)
+              }
+              .left
+              .map(error => handleClientErrors(Invalid(error)))
+          }
+        Some(bodyParser)
+      } else {
+        None
+      }
     }
 
   def jsonResponse[A: CirceEncoder]: ResponseEntity[A] =
