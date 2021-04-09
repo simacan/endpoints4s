@@ -34,10 +34,7 @@ trait BasicAuthentication
       entity,
       requestDocs,
       headers.xmap(h => tuplerHCred(h, Credentials("", "")))(t => tuplerHCred.unapply(t)._1)
-    )(
-      tuplerUE,
-      tuplerUEHCred
-    ) // Documentation about authentication is done below by overriding authenticatedEndpoint
+    ).materialize // Documentation about authentication is done below by overriding authenticatedEndpoint
 
   override def authenticatedEndpoint[U, E, R, H, UE, HCred, Out](
       method: Method,

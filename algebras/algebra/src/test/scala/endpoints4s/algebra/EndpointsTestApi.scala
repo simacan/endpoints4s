@@ -73,7 +73,7 @@ trait EndpointsTestApi extends algebra.Endpoints {
 
   val trailingSlashEndpoint = endpoint(
     get(path / "user" / ""),
-    ok(emptyResponse),
+    ok(emptyResponse)
   )
 
   val headers1 = requestHeader("A") ++ requestHeader("B")
@@ -153,7 +153,7 @@ trait EndpointsTestApi extends algebra.Endpoints {
     get(
       url = path / "transformed-request" /? qs[Int]("n"),
       headers = requestHeader("Accept")
-    ).xmapPartial { case (queryParam, headerValue) =>
+    ).materialize.xmapPartial { case (queryParam, headerValue) =>
       if (headerValue.length == queryParam) Valid((queryParam, headerValue))
       else
         Invalid(
@@ -163,6 +163,11 @@ trait EndpointsTestApi extends algebra.Endpoints {
 
   val endpointWithTransformedRequest = endpoint(
     transformedRequest,
+    ok(emptyResponse)
+  )
+
+  val endpointWithTransformedHeaders = endpoint(
+    get(url = path / "transformed-headers").mapHeaders(_ ++ requestHeader("Accept")),
     ok(emptyResponse)
   )
 

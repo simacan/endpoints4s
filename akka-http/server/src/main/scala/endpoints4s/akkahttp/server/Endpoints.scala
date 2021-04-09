@@ -58,6 +58,32 @@ trait EndpointsWithCustomErrors
 
   type Response[A] = A => Route
 
+  def materialize[Out, UrlP, BodyP, HeadersP, UrlAndBodyPTupled](
+      payload: RequestPayload[UrlP, BodyP, HeadersP]
+  )(implicit
+      tuplerUB: Tupler.Aux[UrlP, BodyP, UrlAndBodyPTupled],
+      tuplerUBH: Tupler.Aux[UrlAndBodyPTupled, HeadersP, Out]
+  ): Request[Out] = new Request[Out] {
+    val directive = {
+      val methodDirective = convToDirective1(Directives.method(payload.method))
+      val headersDirective: Directive1[HeadersP] =
+        directive1InvFunctor.xmapPartial[Validated[HeadersP], HeadersP](
+          Directives.extractRequest.map(payload.headers.decode),
+          identity,
+          c => Valid(c)
+        )
+      val matchDirective = methodDirective & payload.url.directive & headersDirective
+      matchDirective.tflatMap { case (_, a, c) =>
+        payload.entity.map(b => tuplerUBH(tuplerUB(a, b), c))
+      }
+    }
+    def uri(out: Out): Uri = {
+      val (ab, _) = tuplerUBH.unapply(out)
+      val (a, _) = tuplerUB.unapply(ab)
+      payload.url.uri(a)
+    }
+  }
+
   implicit lazy val responseInvariantFunctor: InvariantFunctor[Response] =
     new InvariantFunctor[Response] {
       def xmap[A, B](
@@ -260,36 +286,6 @@ trait EndpointsWithCustomErrors
   ): Response[Either[A, B]] = {
     case Left(a)  => responseA(a)
     case Right(b) => responseB(b)
-  }
-
-  def request[A, B, C, AB, Out](
-      method: Method,
-      url: Url[A],
-      entity: RequestEntity[B] = emptyRequest,
-      docs: Documentation = None,
-      headers: RequestHeaders[C] = emptyRequestHeaders
-  )(implicit
-      tuplerAB: Tupler.Aux[A, B, AB],
-      tuplerABC: Tupler.Aux[AB, C, Out]
-  ): Request[Out] = new Request[Out] {
-    val directive = {
-      val methodDirective = convToDirective1(Directives.method(method))
-      val headersDirective: Directive1[C] =
-        directive1InvFunctor.xmapPartial[Validated[C], C](
-          Directives.extractRequest.map(headers.decode),
-          identity,
-          c => Valid(c)
-        )
-      val matchDirective = methodDirective & url.directive & headersDirective
-      matchDirective.tflatMap { case (_, a, c) =>
-        entity.map(b => tuplerABC(tuplerAB(a, b), c))
-      }
-    }
-    def uri(out: Out): Uri = {
-      val (ab, _) = tuplerABC.unapply(out)
-      val (a, _) = tuplerAB.unapply(ab)
-      url.uri(a)
-    }
   }
 
   def endpoint[A, B](

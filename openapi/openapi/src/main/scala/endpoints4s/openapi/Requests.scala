@@ -29,6 +29,13 @@ trait Requests extends algebra.Requests with Urls with Methods with Headers {
 
   type Request[A] = DocumentedRequest
 
+  def materialize[Out, UrlP, BodyP, HeadersP, UrlAndBodyPTupled](
+      payload: RequestPayload[UrlP, BodyP, HeadersP]
+  )(implicit
+      tuplerUB: Tupler.Aux[UrlP, BodyP, UrlAndBodyPTupled],
+      tuplerUBH: Tupler.Aux[UrlAndBodyPTupled, HeadersP, Out]
+  ): Request[Out] = DocumentedRequest(payload.method, payload.url, payload.headers, payload.docs, payload.entity)
+
   case class DocumentedRequest(
       method: Method,
       url: DocumentedUrl,
@@ -50,18 +57,6 @@ trait Requests extends algebra.Requests with Urls with Methods with Headers {
       requestEntityB: Map[String, MediaType]
   ): Map[String, MediaType] =
     requestEntityB ++ requestEntityA
-
-  def request[A, B, C, AB, Out](
-      method: Method,
-      url: Url[A],
-      entity: RequestEntity[B] = emptyRequest,
-      docs: Documentation = None,
-      headers: RequestHeaders[C] = emptyRequestHeaders
-  )(implicit
-      tuplerAB: Tupler.Aux[A, B, AB],
-      tuplerABC: Tupler.Aux[AB, C, Out]
-  ): Request[Out] =
-    DocumentedRequest(method, url, headers, docs, entity)
 
   implicit def requestPartialInvariantFunctor: PartialInvariantFunctor[Request] =
     new PartialInvariantFunctor[Request] {

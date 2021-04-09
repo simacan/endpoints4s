@@ -581,6 +581,26 @@ trait EndpointsTestSuite[T <: endpoints4s.algebra.EndpointsTestApi] extends Serv
       }
     }
 
+    "" in {
+      serveEndpoint(endpointWithTransformedHeaders, ()) { port =>
+        val validRequest =
+          HttpRequest(uri = s"http://localhost:$port/transformed-headers")
+            .withHeaders(RawHeader("Accept", "text/html"))
+        whenReady(sendAndDecodeEntityAsText(validRequest)) { case (response, _) =>
+          assert(response.status == StatusCodes.OK)
+        }
+        val invalidRequest =
+          HttpRequest(uri = s"http://localhost:$port/transformed-headers")
+        whenReady(sendAndDecodeEntityAsText(invalidRequest)) { case (response, entity) =>
+          assert(response.status == StatusCodes.BadRequest)
+          assert(
+            entity == """["Missing header Accept"]"""
+          )
+        }
+        ()
+      }
+    }
+
     "encode transformed response entities" in {
       val entity = StringWrapper("foo")
       serveEndpoint(

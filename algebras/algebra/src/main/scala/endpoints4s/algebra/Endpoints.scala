@@ -1,6 +1,6 @@
 package endpoints4s.algebra
 
-import endpoints4s.Hashing
+import endpoints4s._
 
 import scala.annotation.nowarn
 

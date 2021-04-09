@@ -4,7 +4,7 @@ import endpoints4s._
 
 /** @group algebras
   */
-trait Requests extends Urls with Methods with SemigroupalSyntax {
+trait Requests extends Urls with Methods with SemigroupalSyntax { self =>
 
   /** Information carried by requests’ headers.
     *
@@ -78,6 +78,30 @@ trait Requests extends Urls with Methods with SemigroupalSyntax {
     * @group types
     */
   type Request[A]
+
+  case class RequestPayload[UrlP, BodyP, HeadersP](
+      method: Method,
+      url: Url[UrlP],
+      entity: RequestEntity[BodyP],
+      docs: Documentation,
+      headers: RequestHeaders[HeadersP]
+  ) {
+    def materialize[Out, UrlAndBodyPTupled](implicit
+        tuplerUB: Tupler.Aux[UrlP, BodyP, UrlAndBodyPTupled],
+        tuplerUBH: Tupler.Aux[UrlAndBodyPTupled, HeadersP, Out]
+    ): Request[Out] = self.materialize(this)
+
+    def mapHeaders[HeadersP2](
+        f: RequestHeaders[HeadersP] => RequestHeaders[HeadersP2]
+    ): RequestPayload[UrlP, BodyP, HeadersP2] = this.copy(headers = f(this.headers))
+  }
+
+  implicit def materialize[Out, UrlP, BodyP, HeadersP, UrlAndBodyPTupled](
+      payload: RequestPayload[UrlP, BodyP, HeadersP]
+  )(implicit
+      tuplerUB: Tupler.Aux[UrlP, BodyP, UrlAndBodyPTupled],
+      tuplerUBH: Tupler.Aux[UrlAndBodyPTupled, HeadersP, Out]
+  ): Request[Out]
 
   /** Provides the operations `xmap` and `xmapPartial`.
     * @see [[PartialInvariantFunctorSyntax]]
@@ -174,28 +198,24 @@ trait Requests extends Urls with Methods with SemigroupalSyntax {
     * @tparam UrlAndBodyPTupled Payloads of Url and Body tupled together by [[Tupler]]
     * @group operations
     */
-  def request[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, Out](
+  def request[UrlP, BodyP, HeadersP](
       method: Method,
       url: Url[UrlP],
       entity: RequestEntity[BodyP] = emptyRequest,
       docs: Documentation = None,
       headers: RequestHeaders[HeadersP] = emptyRequestHeaders
-  )(implicit
-      tuplerUB: Tupler.Aux[UrlP, BodyP, UrlAndBodyPTupled],
-      tuplerUBH: Tupler.Aux[UrlAndBodyPTupled, HeadersP, Out]
-  ): Request[Out]
+  ): RequestPayload[UrlP, BodyP, HeadersP] = RequestPayload(method, url, entity, docs, headers)
 
   /** Helper method to perform GET request
     * @tparam UrlP Payload carried by url
     * @tparam HeadersP Payload carried by headers
     * @group operations
     */
-  final def get[UrlP, HeadersP, Out](
+  final def get[UrlP, HeadersP](
       url: Url[UrlP],
       docs: Documentation = None,
       headers: RequestHeaders[HeadersP] = emptyRequestHeaders
-  )(implicit tuplerUH: Tupler.Aux[UrlP, HeadersP, Out]): Request[Out] =
-    request(Get, url, docs = docs, headers = headers)
+  ): RequestPayload[UrlP, Unit, HeadersP] = request(Get, url, docs = docs, headers = headers)
 
   /** Helper method to perform POST request
     * @param docs Request documentation
@@ -205,15 +225,12 @@ trait Requests extends Urls with Methods with SemigroupalSyntax {
     * @tparam UrlAndBodyPTupled Payloads of Url and Body tupled together by [[Tupler]]
     * @group operations
     */
-  final def post[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, Out](
+  final def post[UrlP, BodyP, HeadersP](
       url: Url[UrlP],
       entity: RequestEntity[BodyP],
       docs: Documentation = None,
       headers: RequestHeaders[HeadersP] = emptyRequestHeaders
-  )(implicit
-      tuplerUB: Tupler.Aux[UrlP, BodyP, UrlAndBodyPTupled],
-      tuplerUBH: Tupler.Aux[UrlAndBodyPTupled, HeadersP, Out]
-  ): Request[Out] =
+  ): RequestPayload[UrlP, BodyP, HeadersP] =
     request(Post, url, entity, docs, headers)
 
   /** Helper method to perform PUT request
@@ -223,15 +240,12 @@ trait Requests extends Urls with Methods with SemigroupalSyntax {
     * @tparam UrlAndBodyPTupled Payloads of Url and Body tupled together by [[Tupler]]
     * @group operations
     */
-  final def put[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, Out](
+  final def put[UrlP, BodyP, HeadersP](
       url: Url[UrlP],
       entity: RequestEntity[BodyP],
       docs: Documentation = None,
       headers: RequestHeaders[HeadersP] = emptyRequestHeaders
-  )(implicit
-      tuplerUB: Tupler.Aux[UrlP, BodyP, UrlAndBodyPTupled],
-      tuplerUBH: Tupler.Aux[UrlAndBodyPTupled, HeadersP, Out]
-  ): Request[Out] =
+  ): RequestPayload[UrlP, BodyP, HeadersP] =
     request(Put, url, entity, docs, headers)
 
   /** Helper method to perform DELETE request
@@ -239,11 +253,11 @@ trait Requests extends Urls with Methods with SemigroupalSyntax {
     * @tparam HeadersP Payload carried by headers
     * @group operations
     */
-  final def delete[UrlP, HeadersP, Out](
+  final def delete[UrlP, HeadersP](
       url: Url[UrlP],
       docs: Documentation = None,
       headers: RequestHeaders[HeadersP] = emptyRequestHeaders
-  )(implicit tuplerUH: Tupler.Aux[UrlP, HeadersP, Out]): Request[Out] =
+  ): RequestPayload[UrlP, Unit, HeadersP] =
     request(Delete, url, docs = docs, headers = headers)
 
   /** Helper method to perform PATCH request
@@ -254,15 +268,12 @@ trait Requests extends Urls with Methods with SemigroupalSyntax {
     * @tparam UrlAndBodyPTupled Payloads of Url and Body tupled together by [[Tupler]]
     * @group operations
     */
-  final def patch[UrlP, BodyP, HeadersP, UrlAndBodyPTupled, Out](
+  final def patch[UrlP, BodyP, HeadersP](
       url: Url[UrlP],
       entity: RequestEntity[BodyP],
       docs: Documentation = None,
       headers: RequestHeaders[HeadersP] = emptyRequestHeaders
-  )(implicit
-      tuplerUB: Tupler.Aux[UrlP, BodyP, UrlAndBodyPTupled],
-      tuplerUBH: Tupler.Aux[UrlAndBodyPTupled, HeadersP, Out]
-  ): Request[Out] =
+  ): RequestPayload[UrlP, BodyP, HeadersP] =
     request(Patch, url, entity, docs, headers)
 
 }
