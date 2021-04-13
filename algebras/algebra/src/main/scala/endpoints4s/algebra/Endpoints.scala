@@ -28,7 +28,7 @@ trait Endpoints extends EndpointsWithCustomErrors with BuiltInErrors
   *
   * @group algebras
   */
-trait EndpointsWithCustomErrors extends Requests with Responses with Errors {
+trait EndpointsWithCustomErrors extends Requests with Responses with Errors { self =>
 
   /** Information carried by an HTTP endpoint
     *
@@ -40,6 +40,35 @@ trait EndpointsWithCustomErrors extends Requests with Responses with Errors {
     * @group types
     */
   type Endpoint[A, B]
+
+  case class EndpointPayload[UrlP, RequestBodyP, RequestHeadersP, ResponseBodyP, ResponseHeadersP](
+      requestPayload: RequestPayload[UrlP, RequestBodyP, RequestHeadersP],
+      responsePayload: ResponsePayload[ResponseBodyP, ResponseHeadersP],
+      docs: EndpointDocs = EndpointDocs()
+  ) {
+    def materialize[A, B, UrlAndRequestBodyPTupled](implicit
+        tuplerUB: Tupler.Aux[UrlP, RequestBodyP, UrlAndRequestBodyPTupled],
+        tuplerUBH: Tupler.Aux[UrlAndRequestBodyPTupled, RequestHeadersP, A],
+        tuplerBH: Tupler.Aux[ResponseBodyP, ResponseHeadersP, B]
+    ): Endpoint[A, B] = self.materialize(this)
+  }
+
+  implicit def materialize[
+      A,
+      B,
+      UrlP,
+      RequestBodyP,
+      RequestHeadersP,
+      UrlAndRequestBodyPTupled,
+      ResponseBodyP,
+      ResponseHeadersP
+  ](
+      payload: EndpointPayload[UrlP, RequestBodyP, RequestHeadersP, ResponseBodyP, ResponseHeadersP]
+  )(implicit
+      tuplerUB: Tupler.Aux[UrlP, RequestBodyP, UrlAndRequestBodyPTupled],
+      tuplerUBH: Tupler.Aux[UrlAndRequestBodyPTupled, RequestHeadersP, A],
+      tuplerBH: Tupler.Aux[ResponseBodyP, ResponseHeadersP, B]
+  ): Endpoint[A, B]
 
   /** Define an HTTP endpoint
     *
@@ -53,6 +82,13 @@ trait EndpointsWithCustomErrors extends Requests with Responses with Errors {
       response: Response[B],
       docs: EndpointDocs = EndpointDocs()
   ): Endpoint[A, B]
+
+  //def endpoint[UrlP, RequestBodyP, RequestHeadersP, ResponseBodyP, ResponseHeadersP](
+  //    request: RequestPayload[UrlP, RequestBodyP, RequestHeadersP],
+  //    response: ResponsePayload[ResponseBodyP, ResponseHeadersP],
+  //    docs: EndpointDocs = EndpointDocs()
+  //): EndpointPayload[UrlP, RequestBodyP, RequestHeadersP, ResponseBodyP, ResponseHeadersP] =
+  //  EndpointPayload(request, response, docs)
 
   /** @param operationId A unique identifier which identifies this operation
     * @param summary     Short description

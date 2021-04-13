@@ -84,6 +84,34 @@ trait EndpointsWithCustomErrors
     }
   }
 
+  implicit def materialize[Out, EntityP, HeadersP](payload: ResponsePayload[EntityP, HeadersP])(
+      implicit tupler: Tupler.Aux[EntityP, HeadersP, Out]
+  ): Response[Out] =
+    r => {
+      val (a, b) = tupler.unapply(r)
+      val httpHeaders = payload.headers(b)
+      implicit val marshaller: ToResponseMarshaller[A] =
+        Marshaller.fromToEntityMarshaller(payload.statusCode, payload.httpHeaders)(payload.entity)
+      Directives.complete(a)
+    }
+
+  implicit def materialize[
+      A,
+      B,
+      UrlP,
+      RequestBodyP,
+      RequestHeadersP,
+      UrlAndRequestBodyPTupled,
+      ResponseBodyP,
+      ResponseHeadersP
+  ](
+      payload: EndpointPayload[UrlP, RequestBodyP, RequestHeadersP, ResponseBodyP, ResponseHeadersP]
+  )(implicit
+      tuplerUB: Tupler.Aux[UrlP, RequestBodyP, UrlAndRequestBodyPTupled],
+      tuplerUBH: Tupler.Aux[UrlAndRequestBodyPTupled, RequestHeadersP, A],
+      tuplerBH: Tupler.Aux[ResponseBodyP, ResponseHeadersP, B]
+  ): Endpoint[A, B] = Endpoint(payload.request.materialize, payload.response.materialize)
+
   implicit lazy val responseInvariantFunctor: InvariantFunctor[Response] =
     new InvariantFunctor[Response] {
       def xmap[A, B](
@@ -263,22 +291,6 @@ trait EndpointsWithCustomErrors
     Marshaller.opaque(_ => HttpEntity.Empty)
 
   def textResponse: ResponseEntity[String] = implicitly
-
-  def response[A, B, R](
-      statusCode: StatusCode,
-      entity: ResponseEntity[A],
-      docs: Documentation = None,
-      headers: ResponseHeaders[B] = emptyResponseHeaders
-  )(implicit
-      tupler: Tupler.Aux[A, B, R]
-  ): Response[R] =
-    r => {
-      val (a, b) = tupler.unapply(r)
-      val httpHeaders = headers(b)
-      implicit val marshaller: ToResponseMarshaller[A] =
-        Marshaller.fromToEntityMarshaller(statusCode, httpHeaders)(entity)
-      Directives.complete(a)
-    }
 
   def choiceResponse[A, B](
       responseA: Response[A],

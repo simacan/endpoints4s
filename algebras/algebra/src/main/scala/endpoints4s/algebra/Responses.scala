@@ -5,7 +5,7 @@ import endpoints4s.{InvariantFunctor, InvariantFunctorSyntax, Semigroupal, Tuple
 /** @group algebras
   */
 trait Responses extends StatusCodes with InvariantFunctorSyntax {
-  this: Errors =>
+  self: Errors =>
 
   /** An HTTP response (status, headers, and entity) carrying an information of type A
     *
@@ -18,6 +18,28 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
     * @group types
     */
   type Response[A]
+
+  case class ResponsePayload[BodyP, HeadersP](
+      statusCode: StatusCode,
+      entity: ResponseEntity[BodyP],
+      docs: Documentation = None,
+      headers: ResponseHeaders[HeadersP]
+  ) {
+    def materialize[Out](implicit tupler: Tupler.Aux[BodyP, HeadersP, Out]): Response[Out] =
+      self.materialize(this)
+
+    def mapEntity[BodyP2](
+        f: ResponseEntity[BodyP] => ResponseEntity[BodyP2]
+    ): ResponsePayload[BodyP2, HeadersP] = this.copy(entity = f(entity))
+
+    def mapHeaders[HeadersP2](
+        f: ResponseHeaders[HeadersP] => ResponseHeaders[HeadersP2]
+    ): ResponsePayload[BodyP, HeadersP2] = this.copy(headers = f(headers))
+  }
+
+  implicit def materialize[Out, BodyP, HeadersP](
+      payload: ResponsePayload[BodyP, HeadersP]
+  )(implicit tupler: Tupler.Aux[BodyP, HeadersP, Out]): Response[Out]
 
   /** Provides the operation `xmap` to the type `Response`
     * @see [[InvariantFunctorSyntax]]
@@ -137,12 +159,12 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
     * @param headers    Response headers
     * @group operations
     */
-  def response[A, B, R](
+  def response[A, B](
       statusCode: StatusCode,
       entity: ResponseEntity[A],
       docs: Documentation = None,
       headers: ResponseHeaders[B] = emptyResponseHeaders
-  )(implicit tupler: Tupler.Aux[A, B, R]): Response[R]
+  ): ResponsePayload[A, B]
 
   /** Alternative between two possible choices of responses.
     *
@@ -158,24 +180,21 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
   /** OK (200) Response with the given entity
     * @group operations
     */
-  final def ok[A, B, R](
+  final def ok[A, B](
       entity: ResponseEntity[A],
       docs: Documentation = None,
       headers: ResponseHeaders[B] = emptyResponseHeaders
-  )(implicit tupler: Tupler.Aux[A, B, R]): Response[R] =
-    response(OK, entity, docs, headers)
+  ): ResponsePayload[A, B] = response(OK, entity, docs, headers)
 
   /** Bad Request (400) response, with an entity of type `ClientErrors`.
     *
     * @see [[endpoints4s.algebra.Errors]] and [[endpoints4s.algebra.BuiltInErrors]]
     * @group operations
     */
-  final def badRequest[A, R](
+  final def badRequest[A](
       docs: Documentation = None,
       headers: ResponseHeaders[A] = emptyResponseHeaders
-  )(implicit
-      tupler: Tupler.Aux[ClientErrors, A, R]
-  ): Response[R] =
+  ): ResponsePayload[ClientErrors, A] =
     response(BadRequest, clientErrorsResponseEntity, docs, headers)
 
   /** Internal Server Error (500) response, with an entity of type `ServerError`.
@@ -183,12 +202,10 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
     * @see [[endpoints4s.algebra.Errors]] and [[endpoints4s.algebra.BuiltInErrors]]
     * @group operations
     */
-  final def internalServerError[A, R](
+  final def internalServerError[A](
       docs: Documentation = None,
       headers: ResponseHeaders[A] = emptyResponseHeaders
-  )(implicit
-      tupler: Tupler.Aux[ServerError, A, R]
-  ): Response[R] =
+  ): ResponsePayload[ServerError, A] =
     response(InternalServerError, serverErrorResponseEntity, docs, headers)
 
   /** Turns a `Response[A]` into a `Response[Option[A]]`.

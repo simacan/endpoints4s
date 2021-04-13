@@ -86,14 +86,24 @@ trait Requests extends Urls with Methods with SemigroupalSyntax { self =>
       docs: Documentation,
       headers: RequestHeaders[HeadersP]
   ) {
+
     def materialize[Out, UrlAndBodyPTupled](implicit
         tuplerUB: Tupler.Aux[UrlP, BodyP, UrlAndBodyPTupled],
         tuplerUBH: Tupler.Aux[UrlAndBodyPTupled, HeadersP, Out]
     ): Request[Out] = self.materialize(this)
 
+    def withMethod(newMethod: Method): RequestPayload[UrlP, BodyP, HeadersP] =
+      this.copy(method = newMethod)
+
+    def mapUrl[UrlP2](
+        f: Url[UrlP] => Url[UrlP2]
+    ): RequestPayload[UrlP2, BodyP, HeadersP] = this.copy(url = f(this.url))
+
     def mapHeaders[HeadersP2](
         f: RequestHeaders[HeadersP] => RequestHeaders[HeadersP2]
-    ): RequestPayload[UrlP, BodyP, HeadersP2] = this.copy(headers = f(this.headers))
+    ): RequestPayload[UrlP, BodyP, HeadersP2] = {
+      this.copy(headers = f(this.headers))
+    }
   }
 
   implicit def materialize[Out, UrlP, BodyP, HeadersP, UrlAndBodyPTupled](
