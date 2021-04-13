@@ -349,7 +349,9 @@ trait Urls extends PartialInvariantFunctorSyntax {
     *        and [[InvariantFunctorSyntax]] classes.
     * @group types
     */
-  type Url[A]
+  type Url[A] = {
+    type UrlP = A
+  }
 
   /** Provides `xmap` and `xmapPartial` operations
     * @see [[PartialInvariantFunctorSyntax]] and [[InvariantFunctorSyntax]]

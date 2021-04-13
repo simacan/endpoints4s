@@ -27,29 +27,37 @@ trait Requests extends algebra.Requests with Urls with Methods with Headers {
       List(DocumentedHeader(name, docs, required = false, Schema.simpleString))
     )
 
-  type Request[A] = DocumentedRequest
+  override type Request[A] = DocumentedRequest
 
   case class DocumentedRequest(
       method: Method,
       url: DocumentedUrl,
       headers: DocumentedHeaders,
       documentation: Documentation,
-      entity: Map[String, MediaType]
-  )
+      entity: DocumentedRequestEntity
+  ) {
+    type UrlP = DocumentedUrl#UrlP
+    type HeadersP = DocumentedHeaders#HeadersP
+    type EntityP = DocumentedRequestEntity#EntityP
+  }
 
-  type RequestEntity[A] = Map[String, MediaType]
+  type RequestEntity[A] = DocumentedRequestEntity
 
-  lazy val emptyRequest = Map.empty[String, MediaType]
+  case class DocumentedRequestEntity(map: Map[String, MediaType]) {
+    type EntityP = Nothing
+  }
 
-  lazy val textRequest = Map(
+  lazy val emptyRequest = DocumentedRequestEntity(Map.empty[String, MediaType])
+
+  lazy val textRequest = DocumentedRequestEntity(Map(
     "text/plain" -> MediaType(Some(Schema.simpleString))
-  )
+  ))
 
   def choiceRequestEntity[A, B](
-      requestEntityA: Map[String, MediaType],
-      requestEntityB: Map[String, MediaType]
-  ): Map[String, MediaType] =
-    requestEntityB ++ requestEntityA
+      requestEntityA: DocumentedRequestEntity,
+      requestEntityB: DocumentedRequestEntity,
+  ): DocumentedRequestEntity =
+    DocumentedRequestEntity(requestEntityB.map ++ requestEntityA.map)
 
   def request[A, B, C, AB, Out](
       method: Method,
@@ -62,6 +70,8 @@ trait Requests extends algebra.Requests with Urls with Methods with Headers {
       tuplerABC: Tupler.Aux[AB, C, Out]
   ): Request[Out] =
     DocumentedRequest(method, url, headers, docs, entity)
+
+  implicit def toDocReq(map: Map[String, MediaType]): DocumentedRequestEntity = DocumentedRequestEntity(map)
 
   implicit def requestPartialInvariantFunctor: PartialInvariantFunctor[Request] =
     new PartialInvariantFunctor[Request] {

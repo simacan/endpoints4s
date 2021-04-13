@@ -272,6 +272,10 @@ trait EndpointsWithCustomErrors
       tuplerAB: Tupler.Aux[A, B, AB],
       tuplerABC: Tupler.Aux[AB, C, Out]
   ): Request[Out] = new Request[Out] {
+    type UrlP = A
+    type EntityP = B
+    type HeadersP = C
+
     val directive = {
       val methodDirective = convToDirective1(Directives.method(method))
       val headersDirective: Directive1[C] =
@@ -290,6 +294,12 @@ trait EndpointsWithCustomErrors
       val (a, _) = tuplerAB.unapply(ab)
       url.uri(a)
     }
+
+    def url: Url[UrlP] = url
+
+    def entity: RequestEntity[EntityP] = entity
+
+    def headers: RequestHeaders[HeadersP] = headers
   }
 
   def endpoint[A, B](

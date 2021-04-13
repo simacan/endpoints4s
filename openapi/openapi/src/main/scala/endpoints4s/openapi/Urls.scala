@@ -186,7 +186,9 @@ trait Urls extends algebra.Urls {
   case class DocumentedUrl(
       path: List[Either[String, DocumentedParameter]],
       queryParameters: List[DocumentedParameter]
-  )
+  ) {
+    type UrlP = Nothing
+  }
 
   def urlWithQueryString[A, B](path: Path[A], qs: QueryString[B])(implicit
       tupler: Tupler[A, B]

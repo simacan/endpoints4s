@@ -58,7 +58,7 @@ trait EndpointsWithCustomErrors
     }
   }
 
-  def endpoint[A, B](
+  override def endpoint[A, B](
       request: Request[A],
       response: Response[B],
       docs: EndpointDocs = EndpointDocs()
@@ -125,8 +125,8 @@ trait EndpointsWithCustomErrors
         docs.summary,
         docs.description,
         parameters,
-        if (request.entity.isEmpty) None
-        else Some(RequestBody(request.documentation, request.entity)),
+        if (request.entity.map.isEmpty) None
+        else Some(RequestBody(request.documentation, request.entity.map)),
         responses,
         docs.tags,
         security = Nil, // might be refined later by specific interpreters
