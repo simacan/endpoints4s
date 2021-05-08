@@ -35,7 +35,11 @@ trait Requests extends algebra.Requests with Urls with Methods with Headers {
       headers: DocumentedHeaders,
       documentation: Documentation,
       entity: Map[String, MediaType]
-  )
+  ) {
+    type UrlP = Nothing
+    type EntityP = Nothing
+    type HeadersP = Nothing
+  }
 
   type RequestEntity[A] = Map[String, MediaType]
 

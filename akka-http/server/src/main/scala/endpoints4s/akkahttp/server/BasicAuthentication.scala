@@ -16,6 +16,33 @@ import endpoints4s.algebra.Documentation
   */
 trait BasicAuthentication extends algebra.BasicAuthentication with EndpointsWithCustomErrors {
 
+  //def authHeaders[H, HCred](headers: RequestHeaders[H])(implicit
+  //    tuplerHCred: Tupler.Aux[H, Credentials, HCred]
+  //): RequestHeaders[HCred] = {
+  //  val authHeader: RequestHeaders[Option[Credentials]] =
+  //    httpHeaders =>
+  //      Valid(
+  //        httpHeaders.header[Authorization].flatMap {
+  //          case Authorization(BasicHttpCredentials(username, password)) =>
+  //            Some(Credentials(username, password))
+  //          case _ => None
+  //        }
+  //      )
+  //  (headers ++ authHeader).xmapPartial({
+  //    case (h, Some(credentials)) =>
+  //      Valid(tuplerHCred(h, credentials))
+  //    case (h, None) =>
+  //      Invalid("")
+  //  })({ hCred =>
+  //    val (h, cred) = tuplerHCred.unapply(hCred)
+  //    (h, Some(cred))
+  //  })
+  //}
+
+  //def authRequest[A, Out](request: Request[A]): Request[Out] = {
+  //  request.copy(headers = authHeaders(request.headers))
+  //}
+
   private[endpoints4s] def authenticatedRequest[U, E, H, UE, HCred, Out](
       method: Method,
       url: Url[U],
@@ -26,58 +53,73 @@ trait BasicAuthentication extends algebra.BasicAuthentication with EndpointsWith
       tuplerUE: Tupler.Aux[U, E, UE],
       tuplerHCred: Tupler.Aux[H, Credentials, HCred],
       tuplerUEHCred: Tupler.Aux[UE, HCred, Out]
-  ): Request[Out] = new Request[Out] {
-    val authHeader: RequestHeaders[Option[Credentials]] =
-      httpHeaders =>
-        Valid(
-          httpHeaders.header[Authorization].flatMap {
-            case Authorization(BasicHttpCredentials(username, password)) =>
-              Some(Credentials(username, password))
-            case _ => None
-          }
-        )
+  ): Request[Out] = {
+    val _method = method
+    val _url = url
+    val _entity = entity
+    val _docs = requestDocs
+    val _headers = headers
+    new Request[Out] {
+      type UrlP = U
+      type EntityP = E
+      type HeadersP = H
+      val authHeader: RequestHeaders[Option[Credentials]] =
+        httpHeaders =>
+          Valid(
+            httpHeaders.header[Authorization].flatMap {
+              case Authorization(BasicHttpCredentials(username, password)) =>
+                Some(Credentials(username, password))
+              case _ => None
+            }
+          )
 
-    val headersDirective: Directive1[HCred] =
-      // First, handle regular header validation
-      directive1InvFunctor
-        .xmapPartial[Validated[(H, Option[Credentials])], (H, Option[Credentials])](
-          Directives.extractRequest.map((headers ++ authHeader).decode),
-          validated => validated,
-          headersAndCredentials => Valid(headersAndCredentials)
-        )
-        .flatMap {
-          // Then, check that credentials are present
-          case (h, Some(credentials)) =>
-            Directives.provide(tuplerHCred(h, credentials))
-          case (_, None) =>
-            Directive[Tuple1[HCred]] { _ => //inner is ignored
-              Directives.complete(
-                HttpResponse(
-                  AkkaStatusCodes.Unauthorized,
-                  collection.immutable.Seq[HttpHeader](
-                    `WWW-Authenticate`(HttpChallenges.basic("Realm"))
+      val headersDirective: Directive1[HCred] =
+        // First, handle regular header validation
+        directive1InvFunctor
+          .xmapPartial[Validated[(H, Option[Credentials])], (H, Option[Credentials])](
+            Directives.extractRequest.map((headers ++ authHeader).decode),
+            validated => validated,
+            headersAndCredentials => Valid(headersAndCredentials)
+          )
+          .flatMap {
+            // Then, check that credentials are present
+            case (h, Some(credentials)) =>
+              Directives.provide(tuplerHCred(h, credentials))
+            case (_, None) =>
+              Directive[Tuple1[HCred]] { _ => //inner is ignored
+                Directives.complete(
+                  HttpResponse(
+                    AkkaStatusCodes.Unauthorized,
+                    collection.immutable.Seq[HttpHeader](
+                      `WWW-Authenticate`(HttpChallenges.basic("Realm"))
+                    )
                   )
                 )
-              )
-            }
-        }
+              }
+          }
 
-    val directive =
-      joinDirectives(
+      val directive =
         joinDirectives(
           joinDirectives(
-            convToDirective1(Directives.method(method)),
-            url.directive
+            joinDirectives(
+              convToDirective1(Directives.method(method)),
+              url.directive
+            ),
+            entity
           ),
-          entity
-        ),
-        headersDirective
-      )
+          headersDirective
+        )
 
-    def uri(out: Out): Uri = {
-      val (ue, _) = tuplerUEHCred.unapply(out)
-      val (u, _) = tuplerUE.unapply(ue)
-      url.uri(u)
+      def uri(out: Out): Uri = {
+        val (ue, _) = tuplerUEHCred.unapply(out)
+        val (u, _) = tuplerUE.unapply(ue)
+        url.uri(u)
+      }
+      def method: Method = _method
+      def url: Url[UrlP] = _url
+      def entity: RequestEntity[EntityP] = _entity
+      def headers: RequestHeaders[HeadersP] = _headers
+      def documentation: Documentation = _docs
     }
   }
 

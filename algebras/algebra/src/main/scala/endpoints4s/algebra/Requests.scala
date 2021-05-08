@@ -77,7 +77,21 @@ trait Requests extends Urls with Methods with SemigroupalSyntax {
     * @note This type has implicit methods provided by the [[PartialInvariantFunctorSyntax]] class.
     * @group types
     */
-  type Request[A]
+  type Request[A] <: {
+    type UrlP
+    type EntityP
+    type HeadersP
+
+    def method: Method
+
+    def url: Url[UrlP]
+
+    def entity: RequestEntity[EntityP]
+
+    def headers: RequestHeaders[HeadersP]
+
+    def documentation: Documentation
+  }
 
   /** Provides the operations `xmap` and `xmapPartial`.
     * @see [[PartialInvariantFunctorSyntax]]
