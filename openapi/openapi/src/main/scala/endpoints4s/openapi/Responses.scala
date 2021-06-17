@@ -15,7 +15,7 @@ trait Responses extends algebra.Responses with StatusCodes with Headers {
 
   type ResponseHeaders[A] = DocumentedHeaders
 
-  type Response[A] = List[DocumentedResponse]
+  type Response[A] = DocumentedResponse
 
   /** @param status Response status code (e.g. OK or NotFound)
     * @param documentation Human readable documentation. Not optional because its required by openapi
@@ -24,10 +24,22 @@ trait Responses extends algebra.Responses with StatusCodes with Headers {
     */
   case class DocumentedResponse(
       status: StatusCode,
-      documentation: String,
+      docs: String, // TODO bincompat
       headers: DocumentedHeaders,
-      content: Map[String, MediaType]
-  )
+      content: Map[String, MediaType],
+      otherResponses: List[DocumentedResponse] = Nil
+  ) {
+    type EntityP = Nothing
+    type HeadersP = Nothing
+
+    def statusCode = status
+
+    def documentation: Documentation = Some(docs)
+
+    def entity = content
+
+    def responses: List[DocumentedResponse] = this +: otherResponses
+  }
 
   implicit lazy val responseInvariantFunctor: InvariantFunctor[Response] =
     new InvariantFunctor[Response] {
@@ -56,13 +68,13 @@ trait Responses extends algebra.Responses with StatusCodes with Headers {
   )(implicit
       tupler: Tupler.Aux[A, B, R]
   ): Response[R] =
-    DocumentedResponse(statusCode, docs.getOrElse(""), headers, entity) :: Nil
+    DocumentedResponse(statusCode, docs.getOrElse(""), headers, entity)
 
   def choiceResponse[A, B](
       responseA: Response[A],
       responseB: Response[B]
   ): Response[Either[A, B]] =
-    responseA ++ responseB
+    responseA.copy(otherResponses = responseA.otherResponses :+ responseB)
 
   implicit def responseHeadersSemigroupal: Semigroupal[ResponseHeaders] =
     new Semigroupal[ResponseHeaders] {

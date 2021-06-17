@@ -68,37 +68,37 @@ trait EndpointsWithCustomErrors
         url: Url[U] = this.url,
         entity: RequestEntity[E] = this.entity,
         headers: RequestHeaders[H] = this.headers,
-        documentation: Documentation = this.documentation 
+        documentation: Documentation = this.documentation
     )(implicit
-        tuplerAB: Tupler.Aux[U, E, UE],
-        tuplerABC: Tupler.Aux[UE, H, UEH]
+        tuplerUE: Tupler.Aux[U, E, UE],
+        tuplerUEH: Tupler.Aux[UE, H, UEH]
     ): Request[UEH] = Request(method, url, entity, headers, documentation)
   }
 
   object Request {
-    def apply[A, B, C, AB, Out](
+    def apply[U, E, H, UE, UEH](
         method: Method,
-        url: Url[A],
-        entity: RequestEntity[B],
-        headers: RequestHeaders[C],
+        url: Url[U],
+        entity: RequestEntity[E],
+        headers: RequestHeaders[H],
         documentation: Documentation = None
     )(implicit
-        tuplerAB: Tupler.Aux[A, B, AB],
-        tuplerABC: Tupler.Aux[AB, C, Out]
-    ): Request[Out] = {
+        tuplerAB: Tupler.Aux[U, E, UE],
+        tuplerABC: Tupler.Aux[UE, H, UEH]
+    ): Request[UEH] = {
       val _method = method
       val _url = url
       val _entity = entity
       val _docs = documentation
       val _headers = headers
-      new Request[Out] {
-        type UrlP = A
-        type EntityP = B
-        type HeadersP = C
+      new Request[UEH] {
+        type UrlP = U
+        type EntityP = E
+        type HeadersP = H
         val directive = {
           val methodDirective = convToDirective1(Directives.method(method))
-          val headersDirective: Directive1[C] =
-            directive1InvFunctor.xmapPartial[Validated[C], C](
+          val headersDirective: Directive1[H] =
+            directive1InvFunctor.xmapPartial[Validated[H], H](
               Directives.extractRequest.map(_headers.decode),
               identity,
               c => Valid(c)
@@ -108,7 +108,7 @@ trait EndpointsWithCustomErrors
             _entity.map(b => tuplerABC(tuplerAB(a, b), c))
           }
         }
-        def uri(out: Out): Uri = {
+        def uri(out: UEH): Uri = {
           val (ab, _) = tuplerABC.unapply(out)
           val (a, _) = tuplerAB.unapply(ab)
           _url.uri(a)
@@ -128,7 +128,66 @@ trait EndpointsWithCustomErrors
 
   type ResponseHeaders[A] = A => collection.immutable.Seq[HttpHeader]
 
-  type Response[A] = A => Route
+  trait Response[A] {
+    type EntityP
+    type HeadersP
+
+    def payload: A => Route
+
+    def statusCode: StatusCode
+
+    def entity: ResponseEntity[EntityP]
+
+    def headers: ResponseHeaders[HeadersP]
+
+    def documentation: Documentation
+
+    def apply(a: A) = payload(a)
+
+    def copy[E, H, EH](
+        payload: EH => Route = this.payload,
+        statusCode: StatusCode = this.statusCode,
+        entity: ResponseEntity[E] = this.entity,
+        headers: ResponseHeaders[H] = this.headers,
+        documentation: Documentation = this.documentation
+    ): Response[EH] = Response(
+      payload,
+      statusCode,
+      entity,
+      headers,
+      documentation
+    )
+  }
+
+  object Response {
+    def apply[E, H, EH](
+        payload: EH => Route,
+        statusCode: StatusCode,
+        entity: ResponseEntity[E],
+        headers: ResponseHeaders[H],
+        documentation: Documentation = None
+    ): Response[EH] = {
+      val _payload = payload
+      val _statusCode = statusCode
+      val _entity = entity
+      val _headers = headers
+      val _docs = documentation
+      new Response[EH] {
+        type EntityP = E
+        type HeadersP = H
+
+        def payload = _payload
+
+        def statusCode = _statusCode
+
+        def entity = _entity
+
+        def headers = _headers
+
+        def documentation = _docs
+      }
+    }
+  }
 
   implicit lazy val responseInvariantFunctor: InvariantFunctor[Response] =
     new InvariantFunctor[Response] {
@@ -137,7 +196,7 @@ trait EndpointsWithCustomErrors
           f: A => B,
           g: B => A
       ): Response[B] =
-        fa compose g
+        fa.copy(payload = fa.payload compose g)
     }
 
   implicit lazy val responseEntityInvariantFunctor: InvariantFunctor[ResponseEntity] =
@@ -196,17 +255,14 @@ trait EndpointsWithCustomErrors
     new PartialInvariantFunctor[Request] {
       def xmapPartial[A, B](fa: Request[A], f: A => Validated[B], g: B => A): Request[B] =
         new Request[B] {
-
+          type UrlP = fa.UrlP
+          type EntityP = fa.EntityP
+          type HeadersP = fa.HeadersP
           override def method: Method = fa.method
-
-          override def url: Url[UrlP] = ???
-
-          override def entity: RequestEntity[EntityP] = ???
-
-          override def headers: RequestHeaders[HeadersP] = ???
-
-          override def documentation: Documentation = ???
-
+          override def url: Url[UrlP] = fa.url
+          override def entity: RequestEntity[EntityP] = fa.entity
+          override def headers: RequestHeaders[HeadersP] = fa.headers
+          override def documentation: Documentation = fa.documentation
           val directive: Directive1[B] = directive1InvFunctor.xmapPartial(fa.directive, f, g)
           def uri(b: B): Uri = fa.uri(g(b))
         }
@@ -328,22 +384,33 @@ trait EndpointsWithCustomErrors
       headers: ResponseHeaders[B] = emptyResponseHeaders
   )(implicit
       tupler: Tupler.Aux[A, B, R]
-  ): Response[R] =
-    r => {
+  ): Response[R] = Response(
+    payload = r => {
       val (a, b) = tupler.unapply(r)
       val httpHeaders = headers(b)
       implicit val marshaller: ToResponseMarshaller[A] =
         Marshaller.fromToEntityMarshaller(statusCode, httpHeaders)(entity)
       Directives.complete(a)
-    }
+    },
+    statusCode,
+    entity,
+    headers,
+    docs
+  )
 
   def choiceResponse[A, B](
       responseA: Response[A],
       responseB: Response[B]
-  ): Response[Either[A, B]] = {
-    case Left(a)  => responseA(a)
-    case Right(b) => responseB(b)
-  }
+  ): Response[Either[A, B]] = Response(
+    payload = {
+      case Left(a)  => responseA(a)
+      case Right(b) => responseB(b)
+    },
+    statusCode = responseA.statusCode,
+    entity = responseA.entity,
+    headers = responseA.headers,
+    documentation = responseA.documentation
+  )
 
   def request[A, B, C, AB, Out](
       method: Method,

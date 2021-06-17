@@ -35,7 +35,7 @@ trait Assets extends algebra.Assets with EndpointsWithCustomErrors with StatusCo
       docs: Documentation,
       notFoundDocs: Documentation
   ): Endpoint[AssetRequest, AssetResponse] = {
-    def response(statusCode: StatusCode) =
+    def response(statusCode: StatusCode, otherResponses: List[DocumentedResponse] = Nil) =
       DocumentedResponse(
         statusCode,
         docs.getOrElse(""),
@@ -44,7 +44,7 @@ trait Assets extends algebra.Assets with EndpointsWithCustomErrors with StatusCo
       )
     endpoint(
       DocumentedRequest(Get, url, emptyRequestHeaders, None, emptyRequest),
-      response(OK) :: response(NotModified) :: response(NotFound) :: Nil
+      response(OK, response(NotModified) :: response(NotFound) :: Nil)
     )
   }
 

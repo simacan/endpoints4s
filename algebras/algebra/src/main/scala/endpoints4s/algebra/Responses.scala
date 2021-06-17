@@ -17,7 +17,18 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
     *       and [[ResponseSyntax]] classes
     * @group types
     */
-  type Response[A]
+  type Response[A] <: {
+    type EntityP
+    type HeadersP
+
+    def statusCode: StatusCode
+
+    def entity: ResponseEntity[EntityP]
+
+    def headers: ResponseHeaders[HeadersP]
+
+    def documentation: Documentation
+  }
 
   /** Provides the operation `xmap` to the type `Response`
     * @see [[InvariantFunctorSyntax]]
