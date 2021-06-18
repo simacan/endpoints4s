@@ -30,6 +30,13 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
     def documentation: Documentation
   }
 
+  def responseWithEntity[E, A, B](response: Response[A])(entity: ResponseEntity[E]): Response[B] =
+    mapEntity(response)((_: ResponseEntity[response.EntityP]) => entity)
+
+  def mapEntity[E, E0, A, A0](response: Response[A])(
+      f: ResponseEntity[E] => ResponseEntity[E0]
+  ): Response[A0]
+
   /** Provides the operation `xmap` to the type `Response`
     * @see [[InvariantFunctorSyntax]]
     */
@@ -164,7 +171,13 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
   def choiceResponse[A, B](
       responseA: Response[A],
       responseB: Response[B]
-  ): Response[Either[A, B]]
+  ): Response[Either[A, B]] =
+    responseWithEntity(responseA)(choiceResponseEntity(responseA.entity, responseB.entity))
+
+  def choiceResponseEntity[A, B](
+      responseA: ResponseEntity[A],
+      responseB: ResponseEntity[B]
+  ): ResponseEntity[Either[A, B]]
 
   /** OK (200) Response with the given entity
     * @group operations

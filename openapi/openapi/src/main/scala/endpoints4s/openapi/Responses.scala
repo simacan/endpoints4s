@@ -70,11 +70,16 @@ trait Responses extends algebra.Responses with StatusCodes with Headers {
   ): Response[R] =
     DocumentedResponse(statusCode, docs.getOrElse(""), headers, entity)
 
-  def choiceResponse[A, B](
-      responseA: Response[A],
-      responseB: Response[B]
-  ): Response[Either[A, B]] =
-    responseA.copy(otherResponses = responseA.otherResponses :+ responseB)
+  //def choiceResponse[A, B](
+  //    responseA: Response[A],
+  //    responseB: Response[B]
+  //): Response[Either[A, B]] =
+  //  responseA.copy(otherResponses = responseA.otherResponses :+ responseB)
+
+  def choiceResponseEntity[A, B](
+      responseA: ResponseEntity[A],
+      responseB: ResponseEntity[B]
+  ): ResponseEntity[Either[A, B]] = responseA ++ responseB
 
   implicit def responseHeadersSemigroupal: Semigroupal[ResponseHeaders] =
     new Semigroupal[ResponseHeaders] {
