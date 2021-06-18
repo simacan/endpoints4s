@@ -17,7 +17,43 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
     *       and [[ResponseSyntax]] classes
     * @group types
     */
-  type Response[A]
+  type Response[A] <: {
+    type EntityP
+    type HeadersP
+  }
+
+  type ResponseAux[E, H, A] = Response[A] {
+    type EntityP = E
+    type HeadersP = H
+  }
+
+  def responseStatusCode[A](response: Response[A]): StatusCode
+
+  def responseEntity[A](response: Response[A]): ResponseEntity[response.EntityP]
+
+  def responseHeaders[A](response: Response[A]): ResponseHeaders[response.HeadersP]
+
+  def responseDocumentation[A](response: Response[A]): Documentation
+
+  //trait CompleteResponse[A] {
+  //  type EntityP
+  //  type HeadersP
+
+  //  def statusCode: StatusCode
+
+  //  def entity: ResponseEntity[EntityP]
+
+  //  def headers: ResponseHeaders[HeadersP]
+
+  //  def documentation: Documentation
+  //}
+
+  //object CompleteResponse {
+  //  type Aux[E, H, A] = CompleteResponse[A] {
+  //    type EntityP = E
+  //    type HeadersP = H
+  //  }
+  //}
 
   /** Provides the operation `xmap` to the type `Response`
     * @see [[InvariantFunctorSyntax]]
@@ -210,7 +246,7 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
     *
     * @group operations
     */
-  implicit class ResponseSyntax[A](response: Response[A]) {
+  implicit class ResponseSyntax[A](val response: Response[A]) {
 
     /** Turns a `Response[A]` into a `Response[Option[A]]`.
       *
@@ -229,6 +265,14 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
       */
     final def orElse[B](otherResponse: Response[B]): Response[Either[A, B]] =
       choiceResponse(response, otherResponse)
+
+    final def statusCode: StatusCode = responseStatusCode(response)
+
+    final def entity: ResponseEntity[response.EntityP] = responseEntity(response)
+
+    final def headers: ResponseHeaders[response.HeadersP] = responseHeaders(response)
+
+    final def documentation: Documentation = responseDocumentation(response)
   }
 
 }

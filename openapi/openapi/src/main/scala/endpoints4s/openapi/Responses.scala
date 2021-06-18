@@ -15,7 +15,14 @@ trait Responses extends algebra.Responses with StatusCodes with Headers {
 
   type ResponseHeaders[A] = DocumentedHeaders
 
-  type Response[A] = List[DocumentedResponse]
+  type Response[A] = DocumentedResponses
+
+  case class DocumentedResponses(
+    responses: List[DocumentedResponse]
+  ) {
+    type EntityP = Nothing
+    type HeadersP = Nothing
+  }
 
   /** @param status Response status code (e.g. OK or NotFound)
     * @param documentation Human readable documentation. Not optional because its required by openapi
@@ -56,13 +63,15 @@ trait Responses extends algebra.Responses with StatusCodes with Headers {
   )(implicit
       tupler: Tupler.Aux[A, B, R]
   ): Response[R] =
-    DocumentedResponse(statusCode, docs.getOrElse(""), headers, entity) :: Nil
+    DocumentedResponses(
+      DocumentedResponse(statusCode, docs.getOrElse(""), headers, entity) :: Nil
+    )
 
   def choiceResponse[A, B](
       responseA: Response[A],
       responseB: Response[B]
   ): Response[Either[A, B]] =
-    responseA ++ responseB
+    DocumentedResponses(responseA.responses ++ responseB.responses)
 
   implicit def responseHeadersSemigroupal: Semigroupal[ResponseHeaders] =
     new Semigroupal[ResponseHeaders] {

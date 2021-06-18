@@ -22,10 +22,10 @@ class EndpointsTest extends AnyWordSpec with Matchers with ScalatestRouteTest {
 
   object TestRoutes extends EndpointsEntitiesTestApi {
 
-    val singleStaticGetSegment = endpoint[Unit, Unit](
+    val singleStaticGetSegment = endpoint[Unit, String](
       get(path / "segment1"),
-      (_: Unit) => complete("Ok")
-    ).implementedBy(_ => ())
+      ok(textResponse)
+    ).implementedBy(_ => "Ok")
 
     val smokeEndpointSyncRoute =
       smokeEndpoint.implementedBy(_ => sys.error("Sorry."))

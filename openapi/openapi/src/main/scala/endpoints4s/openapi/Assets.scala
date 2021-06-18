@@ -44,7 +44,7 @@ trait Assets extends algebra.Assets with EndpointsWithCustomErrors with StatusCo
       )
     endpoint(
       DocumentedRequest(Get, url, emptyRequestHeaders, None, emptyRequest),
-      response(OK) :: response(NotModified) :: response(NotFound) :: Nil
+      DocumentedResponses(response(OK) :: response(NotModified) :: response(NotFound) :: Nil)
     )
   }
 

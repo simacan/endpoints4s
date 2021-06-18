@@ -56,7 +56,61 @@ trait EndpointsWithCustomErrors
 
   type ResponseHeaders[A] = A => collection.immutable.Seq[HttpHeader]
 
-  type Response[A] = A => Route
+  trait Response[A] {
+    type EntityP
+    type HeadersP
+
+    def route(a: A): Route
+
+    def statusCode: StatusCode
+
+    def entity: ResponseEntity[EntityP]
+
+    def headers: ResponseHeaders[HeadersP]
+
+    def documentation: Documentation
+
+    def apply(a: A): Route = route(a)
+  }
+
+  object Response {
+    def apply[E, H, A](
+        route: A => Route,
+        statusCode: StatusCode,
+        entity: ResponseEntity[E],
+        headers: ResponseHeaders[H],
+        documentation: Documentation
+    ): ResponseAux[E, H, A] = {
+      val _route = route
+      val _statusCode = statusCode
+      val _entity = entity
+      val _headers = headers
+      val _docs = documentation
+
+      new Response[A] {
+        type EntityP = E
+        type HeadersP = H
+
+        def route(a: A): Route = _route(a)
+
+        def statusCode: StatusCode = _statusCode
+
+        def entity: ResponseEntity[EntityP] = _entity
+
+        def headers: ResponseHeaders[HeadersP] = _headers
+
+        def documentation: Documentation = _docs
+      }
+    }
+  }
+
+  def responseStatusCode[A](response: Response[A]): StatusCode = response.statusCode
+
+  def responseEntity[A](response: Response[A]): ResponseEntity[response.EntityP] = response.entity
+
+  def responseHeaders[A](response: Response[A]): ResponseHeaders[response.HeadersP] = response.headers
+
+  def responseDocumentation[A](response: Response[A]): Documentation = response.documentation
 
   implicit lazy val responseInvariantFunctor: InvariantFunctor[Response] =
     new InvariantFunctor[Response] {
@@ -64,8 +118,13 @@ trait EndpointsWithCustomErrors
           fa: Response[A],
           f: A => B,
           g: B => A
-      ): Response[B] =
-        fa compose g
+      ): Response[B] = Response(
+        (fa.route _) compose g,
+        fa.statusCode,
+        fa.entity,
+        fa.headers,
+        fa.documentation
+      )
     }
 
   implicit lazy val responseEntityInvariantFunctor: InvariantFunctor[ResponseEntity] =
@@ -245,22 +304,33 @@ trait EndpointsWithCustomErrors
       headers: ResponseHeaders[B] = emptyResponseHeaders
   )(implicit
       tupler: Tupler.Aux[A, B, R]
-  ): Response[R] =
-    r => {
+  ): Response[R] = Response(
+    route = r => {
       val (a, b) = tupler.unapply(r)
       val httpHeaders = headers(b)
       implicit val marshaller: ToResponseMarshaller[A] =
         Marshaller.fromToEntityMarshaller(statusCode, httpHeaders)(entity)
       Directives.complete(a)
-    }
+    },
+    statusCode,
+    entity,
+    headers,
+    docs
+  )
 
   def choiceResponse[A, B](
       responseA: Response[A],
       responseB: Response[B]
-  ): Response[Either[A, B]] = {
-    case Left(a)  => responseA(a)
-    case Right(b) => responseB(b)
-  }
+  ): Response[Either[A, B]] = Response(
+    {
+      case Left(a)  => responseA(a)
+      case Right(b) => responseB(b)
+    },
+    responseA.statusCode,
+    responseA.entity,
+    responseA.headers,
+    responseA.documentation
+  )
 
   def request[A, B, C, AB, Out](
       method: Method,
