@@ -2,6 +2,9 @@ package endpoints4s.algebra
 
 import endpoints4s.{InvariantFunctor, InvariantFunctorSyntax, Semigroupal, Tupler}
 
+case class Response[E, H, I[_]](
+)
+
 /** @group algebras
   */
 trait Responses extends StatusCodes with InvariantFunctorSyntax {
@@ -35,25 +38,15 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
 
   def responseDocumentation[A](response: Response[A]): Documentation
 
-  //trait CompleteResponse[A] {
-  //  type EntityP
-  //  type HeadersP
+  def withStatusCode[A](response: Response[A], statusCode: StatusCode): Response[A]
 
-  //  def statusCode: StatusCode
-
-  //  def entity: ResponseEntity[EntityP]
-
-  //  def headers: ResponseHeaders[HeadersP]
-
-  //  def documentation: Documentation
-  //}
-
-  //object CompleteResponse {
-  //  type Aux[E, H, A] = CompleteResponse[A] {
-  //    type EntityP = E
-  //    type HeadersP = H
-  //  }
-  //}
+  def withResponseEntity[A, E, B](
+      response: Response[A],
+      entity: ResponseEntity[E]
+  )(implicit
+      tuplerA: Tupler.Aux[E, response.HeadersP, A],
+      tuplerB: Tupler.Aux[E, response.HeadersP, B]
+  ): ResponseAux[E, response.HeadersP, B]
 
   /** Provides the operation `xmap` to the type `Response`
     * @see [[InvariantFunctorSyntax]]
@@ -191,6 +184,11 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
       responseB: Response[B]
   ): Response[Either[A, B]]
 
+  def choiceResponseEntity[A, B](
+      responseA: ResponseEntity[A],
+      responseB: ResponseEntity[B]
+  ): ResponseEntity[Either[A, B]]
+
   /** OK (200) Response with the given entity
     * @group operations
     */
@@ -273,6 +271,13 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
     final def headers: ResponseHeaders[response.HeadersP] = responseHeaders(response)
 
     final def documentation: Documentation = responseDocumentation(response)
+
+    final def withEntity[E, B](
+        entity: ResponseEntity[E]
+    )(implicit
+        tuplerA: Tupler.Aux[E, response.HeadersP, A],
+        tuplerB: Tupler.Aux[E, response.HeadersP, B]
+    ): ResponseAux[E, response.HeadersP, B] = withResponseEntity(response, entity)
   }
 
 }

@@ -71,6 +71,20 @@ trait EndpointsWithCustomErrors
     def documentation: Documentation
 
     def apply(a: A): Route = route(a)
+
+    def copy[E, H, B](
+        route: B => Route = (this.route _),
+        statusCode: StatusCode = this.statusCode,
+        entity: ResponseEntity[E] = this.entity,
+        headers: ResponseHeaders[H] = this.headers,
+        documentation: Documentation = this.documentation
+    ): ResponseAux[E, H, B] = Response(
+      route,
+      statusCode,
+      entity,
+      headers,
+      documentation
+    )
   }
 
   object Response {
@@ -108,9 +122,30 @@ trait EndpointsWithCustomErrors
 
   def responseEntity[A](response: Response[A]): ResponseEntity[response.EntityP] = response.entity
 
-  def responseHeaders[A](response: Response[A]): ResponseHeaders[response.HeadersP] = response.headers
+  def responseHeaders[A](response: Response[A]): ResponseHeaders[response.HeadersP] =
+    response.headers
 
   def responseDocumentation[A](response: Response[A]): Documentation = response.documentation
+
+  def withStatusCode[A](response: Response[A], statusCode: StatusCode): Response[A] = response.copy(
+    statusCode = statusCode
+  )
+
+  def withResponseEntity[A, E, B](
+      response: Response[A],
+      entity: ResponseEntity[E]
+  )(implicit
+      tuplerA: Tupler.Aux[E, response.HeadersP, A],
+      tuplerB: Tupler.Aux[E, response.HeadersP, B]
+  ): ResponseAux[E, response.HeadersP, B] = {
+    response.copy(
+      route = (response.route _).compose[B](a => {
+        val (e, h) = tuplerB.unapply(a)
+        tuplerA(e, h)
+      }),
+      entity = entity
+    )
+  }
 
   implicit lazy val responseInvariantFunctor: InvariantFunctor[Response] =
     new InvariantFunctor[Response] {
@@ -118,13 +153,7 @@ trait EndpointsWithCustomErrors
           fa: Response[A],
           f: A => B,
           g: B => A
-      ): Response[B] = Response(
-        (fa.route _) compose g,
-        fa.statusCode,
-        fa.entity,
-        fa.headers,
-        fa.documentation
-      )
+      ): Response[B] = fa.copy(route = (fa.route _) compose g) // TODO: ResponseAux
     }
 
   implicit lazy val responseEntityInvariantFunctor: InvariantFunctor[ResponseEntity] =
