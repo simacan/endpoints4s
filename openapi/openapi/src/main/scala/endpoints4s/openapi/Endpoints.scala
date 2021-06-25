@@ -110,7 +110,9 @@ trait EndpointsWithCustomErrors
         )
       }.toMap
     val responses =
-      (clientErrorsResponse.responses ++ serverErrorResponse.responses ++ response.responses)
+      (clientErrorsResponse(().asInstanceOf[ClientErrors]).responses ++ serverErrorResponse(
+        ().asInstanceOf[ServerError]
+      ).responses ++ response(().asInstanceOf[B]).responses)
         .map(r =>
           r.status.toString() -> Response(
             r.documentation,
@@ -136,7 +138,9 @@ trait EndpointsWithCustomErrors
             val requestBody =
               RequestBody(callback.requestDocs, callback.entity.value)
             val responses =
-              callback.response.value.responses
+              callback.response
+                .value(().asInstanceOf[callback.response.T])
+                .responses
                 .map(r =>
                   r.status.toString() -> Response(
                     r.documentation,

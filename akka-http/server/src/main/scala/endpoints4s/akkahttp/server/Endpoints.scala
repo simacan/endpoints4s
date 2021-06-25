@@ -56,11 +56,13 @@ trait EndpointsWithCustomErrors
 
   type ResponseHeaders[A] = A => collection.immutable.Seq[HttpHeader]
 
-  trait Response[A] {
+  type Response[A] = A => ResponseP[A]
+
+  trait ResponseP[A] {
     type EntityP
     type HeadersP
 
-    def route(a: A): Route
+    def route: Route
 
     def statusCode: StatusCode
 
@@ -69,27 +71,11 @@ trait EndpointsWithCustomErrors
     def headers: ResponseHeaders[HeadersP]
 
     def documentation: Documentation
-
-    def apply(a: A): Route = route(a)
-
-    def copy[E, H, B](
-        route: B => Route = (this.route _),
-        statusCode: StatusCode = this.statusCode,
-        entity: ResponseEntity[E] = this.entity,
-        headers: ResponseHeaders[H] = this.headers,
-        documentation: Documentation = this.documentation
-    ): ResponseAux[E, H, B] = Response(
-      route,
-      statusCode,
-      entity,
-      headers,
-      documentation
-    )
   }
 
   object Response {
     def apply[E, H, A](
-        route: A => Route,
+        route: Route,
         statusCode: StatusCode,
         entity: ResponseEntity[E],
         headers: ResponseHeaders[H],
@@ -118,14 +104,13 @@ trait EndpointsWithCustomErrors
     }
   }
 
-  def responseStatusCode[A](response: Response[A]): StatusCode = response.statusCode
+  def responseStatusCode(response: Response[_])(a: A): StatusCode = response(a).statusCode
 
-  def responseEntity[A](response: Response[A]): ResponseEntity[response.EntityP] = response.entity
+  def responseEntity[E](response: ResponseAux[E, _, _]): ResponseEntity[E]
 
-  def responseHeaders[A](response: Response[A]): ResponseHeaders[response.HeadersP] =
-    response.headers
+  def responseHeaders[H](response: ResponseAux[_, H, _]): ResponseHeaders[H]
 
-  def responseDocumentation[A](response: Response[A]): Documentation = response.documentation
+  def responseDocumentation(response: Response[_]): Documentation
 
   def withStatusCode[A](response: Response[A], statusCode: StatusCode): Response[A] = response.copy(
     statusCode = statusCode
@@ -350,16 +335,10 @@ trait EndpointsWithCustomErrors
   def choiceResponse[A, B](
       responseA: Response[A],
       responseB: Response[B]
-  ): Response[Either[A, B]] = Response(
-    {
-      case Left(a)  => responseA(a)
-      case Right(b) => responseB(b)
-    },
-    responseA.statusCode,
-    responseA.entity,
-    responseA.headers,
-    responseA.documentation
-  )
+  ): Response[Either[A, B]] = {
+    case Left(a)  => responseA
+    case Right(b) => responseB
+  }
 
   def request[A, B, C, AB, Out](
       method: Method,

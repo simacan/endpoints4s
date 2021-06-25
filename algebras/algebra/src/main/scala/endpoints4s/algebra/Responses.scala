@@ -20,7 +20,7 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
     *       and [[ResponseSyntax]] classes
     * @group types
     */
-  type Response[A] <: {
+  type Response[A] <: A => {
     type EntityP
     type HeadersP
   }
@@ -30,23 +30,23 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
     type HeadersP = H
   }
 
-  def responseStatusCode[A](response: Response[A]): StatusCode
+  def responseStatusCode(response: Response[_]): StatusCode
 
-  def responseEntity[A](response: Response[A]): ResponseEntity[response.EntityP]
+  def responseEntity[E](response: ResponseAux[E, _, _]): ResponseEntity[E]
 
-  def responseHeaders[A](response: Response[A]): ResponseHeaders[response.HeadersP]
+  def responseHeaders[H](response: ResponseAux[_, H, _]): ResponseHeaders[H]
 
-  def responseDocumentation[A](response: Response[A]): Documentation
+  def responseDocumentation(response: Response[_]): Documentation
 
-  def withStatusCode[A](response: Response[A], statusCode: StatusCode): Response[A]
+  //def withStatusCode[A](response: Response[A], statusCode: StatusCode): Response[A]
 
-  def withResponseEntity[A, E, B](
-      response: Response[A],
-      entity: ResponseEntity[E]
-  )(implicit
-      tuplerA: Tupler.Aux[E, response.HeadersP, A],
-      tuplerB: Tupler.Aux[E, response.HeadersP, B]
-  ): ResponseAux[E, response.HeadersP, B]
+  //def withResponseEntity[A, E, B](
+  //    response: Response[A],
+  //    entity: ResponseEntity[E]
+  //)(implicit
+  //    tuplerA: Tupler.Aux[E, response.HeadersP, A],
+  //    tuplerB: Tupler.Aux[E, response.HeadersP, B]
+  //): ResponseAux[E, response.HeadersP, B]
 
   /** Provides the operation `xmap` to the type `Response`
     * @see [[InvariantFunctorSyntax]]
@@ -266,18 +266,20 @@ trait Responses extends StatusCodes with InvariantFunctorSyntax {
 
     final def statusCode: StatusCode = responseStatusCode(response)
 
-    final def entity: ResponseEntity[response.EntityP] = responseEntity(response)
-
-    final def headers: ResponseHeaders[response.HeadersP] = responseHeaders(response)
-
     final def documentation: Documentation = responseDocumentation(response)
 
-    final def withEntity[E, B](
-        entity: ResponseEntity[E]
-    )(implicit
-        tuplerA: Tupler.Aux[E, response.HeadersP, A],
-        tuplerB: Tupler.Aux[E, response.HeadersP, B]
-    ): ResponseAux[E, response.HeadersP, B] = withResponseEntity(response, entity)
+    //final def withEntity[E, B](
+    //    entity: ResponseEntity[E]
+    //)(implicit
+    //    tuplerA: Tupler.Aux[E, response.HeadersP, A],
+    //    tuplerB: Tupler.Aux[E, response.HeadersP, B]
+    //): ResponseAux[E, response.HeadersP, B] = withResponseEntity(response, entity)
+  }
+
+  implicit class ResponseAuxSyntax[E, H, A](val response: ResponseAux[E, H, A]) {
+    final def entity: ResponseEntity[E] = responseEntity(response)
+
+    final def headers: ResponseHeaders[H] = responseHeaders(response)
   }
 
 }

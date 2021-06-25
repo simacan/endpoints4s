@@ -35,16 +35,16 @@ trait Assets extends algebra.Assets with EndpointsWithCustomErrors with StatusCo
       docs: Documentation,
       notFoundDocs: Documentation
   ): Endpoint[AssetRequest, AssetResponse] = {
-    def response(statusCode: StatusCode) =
-      DocumentedResponse(
-        statusCode,
-        docs.getOrElse(""),
-        emptyResponseHeaders,
-        Map.empty
-      )
+    //def response(statusCode: StatusCode) =
+    //  DocumentedResponse(
+    //    statusCode,
+    //    docs.getOrElse(""),
+    //    emptyResponseHeaders,
+    //    Map.empty
+    //  )
     endpoint(
       DocumentedRequest(Get, url, emptyRequestHeaders, None, emptyRequest),
-      DocumentedResponses(response(OK) :: response(NotModified) :: response(NotFound) :: Nil)
+      ok(emptyResponse).orElse(response(NotModified, emptyResponse)).orElse(response(NotFound, emptyResponse))
     )
   }
 

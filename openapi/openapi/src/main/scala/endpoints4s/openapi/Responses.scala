@@ -15,10 +15,10 @@ trait Responses extends algebra.Responses with StatusCodes with Headers {
 
   type ResponseHeaders[A] = DocumentedHeaders
 
-  type Response[A] = DocumentedResponses
+  type Response[A] = A => DocumentedResponses
 
   case class DocumentedResponses(
-    responses: List[DocumentedResponse]
+      responses: List[DocumentedResponse]
   ) {
     type EntityP = Nothing
     type HeadersP = Nothing
@@ -38,7 +38,7 @@ trait Responses extends algebra.Responses with StatusCodes with Headers {
 
   implicit lazy val responseInvariantFunctor: InvariantFunctor[Response] =
     new InvariantFunctor[Response] {
-      def xmap[A, B](fa: Response[A], f: A => B, g: B => A): Response[B] = fa
+      def xmap[A, B](fa: Response[A], f: A => B, g: B => A): Response[B] = fa.asInstanceOf[Response[B]]
     }
 
   implicit lazy val responseEntityInvariantFunctor: InvariantFunctor[ResponseEntity] =
@@ -62,7 +62,7 @@ trait Responses extends algebra.Responses with StatusCodes with Headers {
       headers: ResponseHeaders[B]
   )(implicit
       tupler: Tupler.Aux[A, B, R]
-  ): Response[R] =
+  ): Response[R] = _ =>
     DocumentedResponses(
       DocumentedResponse(statusCode, docs.getOrElse(""), headers, entity) :: Nil
     )
@@ -70,8 +70,10 @@ trait Responses extends algebra.Responses with StatusCodes with Headers {
   def choiceResponse[A, B](
       responseA: Response[A],
       responseB: Response[B]
-  ): Response[Either[A, B]] =
-    DocumentedResponses(responseA.responses ++ responseB.responses)
+  ): Response[Either[A, B]] = {
+    case Left(a) => DocumentedResponses(responseA(a).responses ++ responseB(a.asInstanceOf[B]).responses)
+    case Right(b) => DocumentedResponses(responseA(b.asInstanceOf[A]).responses ++ responseB(b).responses)
+  }
 
   implicit def responseHeadersSemigroupal: Semigroupal[ResponseHeaders] =
     new Semigroupal[ResponseHeaders] {
